@@ -13,9 +13,9 @@ try {
   let timers = [];
   let page = 1;
 
-  while (page < 3 && resultLength === 500) {
+  while (page < 2 && resultLength === 500) {
     let res = await fetch(
-      `https://projects.arcticleaf.io/time_entries.json?tag-ids=90700&page=${page}&pageSize=500&fromdate=20200101&tagIds=90060`,
+      `https://projects.arcticleaf.io/time_entries.json?page=${page}&pageSize=500&fromdate=20200101&tagIds=90060`,
       {
         method: "GET",
         headers,
@@ -26,8 +26,6 @@ try {
     resultLength = results["time-entries"].length;
     page++;
   }
-
-  console.log(timers.length);
 
   const alreadyCompedTags = [
     "-comp",
@@ -40,35 +38,49 @@ try {
   ];
 
   const compTag = {
-    id: "61738",
+    projectId: 0,
     name: "-comp",
-    dateUpdated: "",
     color: "#9e6957",
-    dateCreated: "",
   };
 
   const timersToUpdate = [];
 
   for (let timer of timers) {
-    timer.tags = timer.tags.filter((t) => t.name !== "-pm");
+    timer.tags = timer.tags
+      .filter((t) => t.name !== "-pm")
+      .map((t) => {
+        return {
+          name: t.name,
+          color: t.color,
+          projectId: t["project-id"] ? parseInt(t["project-id"]) : 0,
+        };
+      });
     if (!timer.tags.some((t) => alreadyCompedTags.includes(t.name))) {
       timer.tags.push(compTag);
     }
     timersToUpdate.push(timer);
   }
 
+  let count = 0;
   for (let timer of timersToUpdate) {
-    const tagIds = timer.tags.map((t) => t.id);
-    const updatedTimer = { tags: tagIds.toString() };
-    console.log(timer);
-    console.log(updatedTimer);
-    /*
-    await fetch(`https://projects.arcticleaf.io/time_entries.json/${timer.id}`, {
-      method: "PUT",
-      headers,
-      body: timer,
-    });
-    */
+    await new Promise((r) => setTimeout(r, 1000));
+    const res = await fetch(
+      `https://projects.arcticleaf.io/projects/api/v3/time/${timer.id}.json`,
+      {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          tags: timer.tags,
+        }),
+      }
+    );
+    const json = await res.json();
+    count++;
+    console.log(
+      `Response: ${res.status}\nResponse Error: ${
+        json.errors ? json.errors[0].detail : "N/A"
+      }\nProgress: ${count}/${timersToUpdate.length} timers updated.`
+    );
   }
 } catch (err) {
   console.log(err);
