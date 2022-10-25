@@ -1,4 +1,5 @@
 import * as dotenv from "dotenv";
+import fs from "fs";
 dotenv.config();
 
 const headers = {
@@ -13,9 +14,9 @@ try {
   let timers = [];
   let page = 1;
 
-  while (page < 2 && resultLength === 500) {
+  while (resultLength === 500) {
     let res = await fetch(
-      `https://projects.arcticleaf.io/time_entries.json?page=${page}&pageSize=500&fromdate=20200101&tagIds=90060`,
+      `https://projects.arcticleaf.io/time_entries.json?page=${page}&pageSize=500&fromdate=20200101&tagIds=90060&projectType=active`,
       {
         method: "GET",
         headers,
@@ -45,6 +46,14 @@ try {
 
   const timersToUpdate = [];
 
+  timers = timers.filter((t) => t["project-status"] !== "archived");
+
+  fs.writeFile(
+    `backup_${new Date()}.json`,
+    JSON.stringify({ timers }),
+    (err) => err
+  );
+
   for (let timer of timers) {
     timer.tags = timer.tags
       .filter((t) => t.name !== "-pm")
@@ -57,8 +66,8 @@ try {
       });
     if (!timer.tags.some((t) => alreadyCompedTags.includes(t.name))) {
       timer.tags.push(compTag);
+      timersToUpdate.push(timer);
     }
-    timersToUpdate.push(timer);
   }
 
   let count = 0;
@@ -74,12 +83,15 @@ try {
         }),
       }
     );
-    const json = await res.json();
+    try {
+      const json = await res.json();
+      console.log(`Error: ${json.errors ? json.errors[0].detail : "N/A"}`);
+    } catch (err) {
+      console.log("Couldnt parse response json");
+    }
     count++;
     console.log(
-      `Response: ${res.status}\nResponse Error: ${
-        json.errors ? json.errors[0].detail : "N/A"
-      }\nProgress: ${count}/${timersToUpdate.length} timers updated.`
+      `Response: ${res.status}\nProgress: ${count}/${timersToUpdate.length} timers updated.`
     );
   }
 } catch (err) {
